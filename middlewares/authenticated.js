@@ -14,25 +14,21 @@ exports.ensureAuth = (req, res, next) => {
         } else if (resp[0] === 'login') {
             next();
         } else {
-            return res.status(500).send({
-                message: 'Necesitas estar logueado para acceder a ' + resp[0]
-            });
+            return res.status(500).send({ message: 'Necesitas estar logueado para acceder a ' + resp[0] });
         }
     } else {
-        var token = req.headers.authorization.replace(/["']+/g, '');
+        const token = req.headers.authorization.replace(/["']+/g, '');
         try {
             var payLoad = jwt.decode(token, key, true);
-            var idUser = payLoad.sub;
+            let idUser = payLoad.sub;
+            let username = payLoad.username;
             module.exports.idUser = idUser;
+            module.exports.username = username;
             if (payLoad.exp <= moment().unix()) {
-                return res.status(401).send({
-                    message: 'Token expirado.'
-                });
+                return res.status(401).send({ message: 'Token expirado.' });
             }
         } catch (ex) {
-            return res.status(404).send({
-                message: 'Token no válido.'
-            });
+            return res.status(404).send({ message: 'Token no válido.' });
         }
         req.user = payLoad;
         next();

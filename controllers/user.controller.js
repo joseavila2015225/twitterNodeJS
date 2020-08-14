@@ -1,492 +1,740 @@
-'use strict'
+"use strict";
 
-var User = require('../models/user.model');
-var Tweet = require('../models/tweet.model');
-var bcrypt = require('bcrypt-nodejs');
-var jwt = require('../services/jwt');
-var authenticated = require('../middlewares/authenticated');
-const {
-    findOneAndUpdate
-} = require('../models/user.model');
+const User = require("../models/user.model");
+const Tweet = require("../models/tweet.model");
+const bcrypt = require("bcrypt-nodejs");
+const jwt = require("../services/jwt");
+const authenticated = require("../middlewares/authenticated");
 
 function commands(req, res) {
-    var user = new User();
-    var tweet = new Tweet();
-    var params = req.body;
-    var userData = Object.values(params);
-    var resp = userData.toString().split(" ");
+  let user = new User();
+  let tweet = new Tweet();
+  let params = req.body;
+  let arrUserData = Object.values(params);
+  let datos = arrUserData.toString().split(" ");
 
-    if (resp[0] == 'login') {
-        if (resp[1] != null && resp[2] != null) {
-            User.findOne({
-                $or: [{
-                    username: resp[1]
-                }, {
-                    email: resp[1]
-                }, {
-                    name: resp[1]
-                }]
-            }, (err, userFind) => {
-                if (err) {
-                    res.status(500).send({
-                        message: 'Error en el server'
-                    });
-                } else if (userFind) {
-                    bcrypt.compare(resp[2], userFind.password, (err, checkPass) => {
-                        if (err) {
-                            res.status(500).send({
-                                message: 'Error en el server'
-                            });
-                        } else if (checkPass) {
-                            if (resp[3] == 'true') {
-                                res.send({
-                                    token: jwt.createToken(userFind)
-                                });
-                            } else {
-                                res.send({
-                                    user: userFind
-                                });
-                            }
-                        } else {
-                            res.send({
-                                message: 'Contraseña incorrecta, intenta de nuevo'
-                            });
-                        }
-                    });
-                } else {
-                    res.send({
-                        message: 'Usuario no encontrado'
-                    });
-                }
-            });
-        } else {
-            res.send({
-                message: 'Ingresa usuario y contraseña'
-            });
-        }
-    }
-    if (resp[0] == 'register') {
-        if (resp[1] != null && resp[2] != null && resp[3] != null && resp[4] != null) {
-            User.findOne({
-                $or: [{
-                    email: resp[2]
-                }, {
-                    username: resp[3]
-                }]
-            }, (err, userFind) => {
-                if (err) {
-                    res.status(500).send({
-                        message: 'Error en el server'
-                    });
-                } else if (userFind) {
-                    res.send({
-                        message: 'Usuario o correo ya utilizado'
-                    });
-                } else {
-                    user.name = resp[1];
-                    user.username = resp[2];
-                    user.email = resp[3];
-                    user.password = resp[4];
-
-                    bcrypt.hash(resp[4], null, null, (err, hashPass) => {
-                        if (err) {
-                            res.status(500).send({
-                                message: 'Fallo al encriptar'
-                            });
-                        } else {
-                            user.password = hashPass;
-
-                            user.save((err, userSaved) => {
-                                if (err) {
-                                    res.status(500).send({
-                                        message: 'Error en el server'
-                                    });
-                                } else if (userSaved) {
-                                    res.send({
-                                        user: userSaved
-                                    })
-                                } else {
-                                    res.status(404).send({
-                                        message: 'Error al guardar el usuario'
-                                    });
-                                }
-                            });
-                        }
-                    });
-                }
-            });
-        } else {
-            res.send({
-                message: 'Por favor ingresa todos los datos'
-            })
-        }
-    }
-
-    if (resp[0] == 'add_tweet') {
-        if (resp[1] != null) {
-            tweet.text = resp.join(' ');
-            tweet.text = tweet.text.replace('add_tweet', '');
-            tweet.text = tweet.text.replace(' ', '');
-            if (tweet.text.length <= 280) {
-                tweet.save((err, tweetSaved) => {
-                    if (err) {
-                        res.status(500).send({
-                            message: 'Error en el server'
-                        });
-                    } else if (tweetSaved) {
-                        res.send({
-                            tweet: tweetSaved
-                        });
-                    } else {
-                        res.status(404).send({
-                            message: 'No se ha podido guardar el tweet'
-                        });
-                    }
-                });
-            } else {
-                res.status(404).send({
-                    message: 'El tweet supera el número de caracteres disponibles'
-                })
-            }
-        } else {
-            res.send({
-                message: '¿Qué deseas compartir?'
-            });
-        }
-    }
-
-    if (resp[0] == 'edit_tweet') {
-        if (resp[1] != null) {
-            if (resp[2] != null) {
-                tweet.text = resp.join(' ');
-                tweet.text = tweet.text.replace('edit_tweet', '');
-                tweet.text = tweet.text.replace(resp[1], '');
-                tweet.text = tweet.text.replace('  ', '');
-                if (tweet.text.length <= 280) {
-                    var update = tweet.text;
-
-                    Tweet.findByIdAndUpdate(resp[1], {
-                        $set: {
-                            text: update
-                        }
-                    }, {
-                        new: true
-                    }, (err, tweetUpdated) => {
-                        if (err) {
-                            res.status(500).send({
-                                message: 'Error en el server'
-                            });
-                        } else if (tweetUpdated) {
-                            res.send({
-                                tweet: tweetUpdated
-                            });
-                        } else {
-                            res.status(404).send({
-                                message: 'Hubo un error al editar el tweet'
-                            });
-                        }
-                    });
-                } else {
-                    res.send({
-                        message: 'Edite su tweet'
-                    });
-                }
-            } else {
-                res.status(404).send({
-                    message: 'Este tweet supera el número de caracteres disponibles'
-                })
-            }
-        } else {
-            res.send({
-                message: 'Ingrese el ID del tweet.'
-            });
-        }
-    }
-
-    if (resp[0] == 'delete_tweet') {
-        if (resp[1] != null) {
-            User.findByIdAndUpdate(authenticated.idUser, {
-                $pull: {
-                    tweets: resp[1]
-                }
-            }, {
-                new: true
-            }, (err, deleted) => {
-                if (err) {
-                    res.status(500).send({
-                        message: 'Error en el server'
-                    });
-                } else if (deleted) {
-                    Tweet.findByIdAndRemove(resp[1], (err, tweetFind) => {
-                        if (err) {
-                            res.status(500).send({
-                                message: 'Error en el server'
-                            });
-                        } else if (tweetFind) {
-                            res.send({
-                                user: "El siguiente tweet ha sido eliminado",
-                                deleted
-                            });
-                        } else {
-                            res.status(404).send({
-                                message: 'No se ha encontrado el tweet.'
-                            });
-                        }
-                    });
-                } else {
-                    res.status(404).send({
-                        message: 'No se ha podido eliminar el tweet.'
-                    });
-                }
-            });
-        } else {
-            res.send({
-                message: 'Ingrese el id del tweet que desea eliminar.'
-            });
-        }
-    }
-
-    if (resp[0] == "view_tweets") {
-        var username = resp[1];
-
-        User.find({
-            $or: [{
-                username: {
-                    $regex: "^" + resp[1],
-                    $options: "i"
-                }
-            }],
-        }, (err, userFind) => {
+  switch (datos[0]) {
+    case "register":
+      if (
+        datos[1] != null &&
+        datos[2] != null &&
+        datos[3] != null &&
+        datos[4] != null
+      ) {
+        User.findOne(
+          { $or: [{ email: datos[2] }, { username: datos[3] }] },
+          (err, userFind) => {
             if (err) {
-                res.status(404).send({
-                    message: "Error en el server :(",
-                    err
-                });
+              res.status(500).send({ message: "Error en el server" });
             } else if (userFind) {
-                res.send({
-                    tweets: "Perfiles creados:",
-                    userFind
-                });
+              res.send({ message: "Usuario o correo en uso" });
             } else {
-                res.send({
-                    message: "Ingrese el nombre de usuario que desea ver"
-                });
+              user.name = datos[1];
+              user.email = datos[2];
+              user.username = datos[3];
+              user.password = datos[4];
+
+              bcrypt.hash(datos[4], null, null, (err, hashPass) => {
+                if (err) {
+                  res.status(500).send({ message: "Fallo al encriptar" });
+                } else {
+                  user.password = hashPass;
+
+                  user.save((err, userSaved) => {
+                    if (err) {
+                      res
+                        .status(500)
+                        .send({ message: "Error en el server" });
+                    } else if (userSaved) {
+                      res.send({ user: userSaved });
+                    } else {
+                      res
+                        .status(404)
+                        .send({ message: "Error al registrarse en Twitter" });
+                    }
+                  });
+                }
+              });
             }
-        }).populate("tweets");
-    }
+          }
+        );
+      } else {
+        res.status(404).send({ message: "Por favor ingresa todos los datos requeridos" });
+      }
+      break;
 
-    if (resp[0] == 'set_tweet') {
-        if (resp[1] != null) {
-            Tweet.findById(resp[1], (err, tweetFind) => {
+    case "login":
+      if (datos[1] != null && datos[2] != null) {
+        User.findOne(
+          { $or: [{ username: datos[1] }, { email: datos[1] }] },
+          (err, userFind) => {
+            if (err) {
+              res.status(500).send({ message: "Error en el server" });
+            } else if (userFind) {
+              bcrypt.compare(datos[2], userFind.password, (err, checkPass) => {
                 if (err) {
-                    res.status(500).send({
-                        message: 'Error en el server'
+                  res.status(500).send({ message: "Error en el server" });
+                } else if (checkPass) {
+                  if (datos[3] == "true") {
+                    res.send({ token: jwt.createToken(userFind) });
+                  } else {
+                    res.send({ user: userFind });
+                  }
+                } else {
+                  res.status(404).send({ message: "Buen intento, ahora ingresa la contraseña correcta" });
+                }
+              });
+            } else {
+              res.status(404).send({ message: "Usuario no existente" });
+            }
+          }
+        );
+      } else {
+        res.status(404).send({ message: "Por favor ingresa tu usuario y tu contraseña" });
+      }
+      break;
+
+    case "add_tweet":
+      if (datos[1] != null) {
+        tweet.content = datos.join(" ");
+        tweet.content = tweet.content.replace("add_tweet", "");
+        tweet.content = tweet.content.replace(" ", "");
+        tweet.user = authenticated.username;
+        
+        if (tweet.content.length <= 280) {
+          User.findByIdAndUpdate(
+            authenticated.idUser,
+            { $inc: { numTweets: 1 } },
+            { new: true },
+            (err, userUpdate) => {
+              if (err) {
+                res.status(500).send({ message: "Error en el server" });
+              } else if (userUpdate) {
+                tweet.save((err, tweetSaved) => {
+                  if (err) {
+                    res.status(500).send({ message: "Error en el server" });
+                  } else if (tweetSaved) {
+                    res.send({ tweet: tweetSaved });
+                  } else {
+                    res
+                      .status(404)
+                      .send({ message: "No has podido tweetear" });
+                  }
+                });
+              } else {
+                res
+                  .status(404)
+                  .send({ message: "No se ha podido agregar el tweet" });
+              }
+            }
+          );
+        } else {
+          res
+            .status(404)
+            .send({
+              message: "El tweet puede tener un máximo de 280 caracteres!",
+            });
+        }
+      } else {
+        res.status(404).send({ message: "Ingresa lo que deseas compartir!" });
+      }
+      break;
+
+    case "edit_tweet":
+      if (datos[1] != null) {
+        if (datos[2] != null) {
+          let content = tweet.content;
+          content = datos.join(" ");
+          content = content.replace("edit_tweet", "");
+          content = content.replace(datos[1], "");
+          content = content.replace("  ", "");
+
+          if (content.length <= 280) {
+            let update = content;
+            Tweet.findByIdAndUpdate(
+              datos[1],
+              { $set: { content: update } },
+              { new: true },
+              (err, tweetUpdated) => {
+                if (err) {
+                  res.status(500).send({ message: "Error en el server" });
+                } else if (tweetUpdated) {
+                  res.send({ tweet: tweetUpdated, content });
+                } else {
+                  res
+                    .status(404)
+                    .send({ message: "Hubo un error al editar tu tweet" });
+                }
+              }
+            );
+          } else {
+            res
+              .status(404)
+              .send({
+                message:
+                  "El tweet puede tener un máximo de 280 caracteres",
+              });
+          }
+        } else {
+          res
+            .status(404)
+            .send({ message: "Edite su tweet" });
+        }
+      } else {
+        res.status(404).send({ message: "Por favor ingresa el ID del tweet que deseas editar" });
+      }
+      break;
+
+    case "delete_tweet":
+      if (datos[1] != null) {
+        Tweet.findByIdAndRemove(datos[1], (err, tweetFind) => {
+          if (err) {
+            res.status(500).send({ message: "Error en el server" });
+          } else if (tweetFind) {
+            User.findByIdAndUpdate(
+              authenticated.idUser,
+              { $inc: { numTweets: -1 } },
+              { new: true },
+              (err, numTweets) => {
+                if (err) {
+                  res.status(500).send({ message: "Error en el server" });
+                } else if (numTweets) {
+                  res.send({ message: "El Tweet ha sido eliminado", tweetFind });
+                } else {
+                  res
+                    .status(404)
+                    .send({
+                      message:
+                        "Hubo un error al borrar el Tweet",
                     });
-                } else if (tweetFind) {
-                    User.findByIdAndUpdate(resp[2], {
-                        $push: {
-                            tweets: resp[1]
+                }
+              }
+            );
+          } else {
+            res.status(404).send({ message: "Este Tweet no existe" });
+          }
+        });
+      } else {
+        res
+          .status(404)
+          .send({ message: "Por favor ingresa el ID del tweet que deseas eliminar" });
+      }
+      break;
+
+    case "view_tweets":
+      if (datos[1] != null) {
+        Tweet.findOne(
+          { user: { $regex: datos[1], $options: "i" } },
+          (err, tweetsFind) => {
+            if (err) {
+              res.status(500).send({ message: "Error en el server" });
+            } else if (tweetsFind) {
+              Tweet.find(
+                { user: { $regex: datos[1], $options: "i" } },
+                (err, tweets) => {
+                  if (err) {
+                    res.status(500).send({ message: "Error en el server" });
+                  } else if (tweets) {
+                    res.send({ tweets: tweets });
+                  } else {
+                    res
+                      .status(404)
+                      .send({ message: "No se han podido mostrar los tweets!" });
+                  }
+                }
+              ).populate("retweet");
+            } else {
+              res.status(404).send({ message: "Este usuario aún no ha tweeteado" });
+            }
+          }
+        );
+      } else {
+        res
+          .status(404)
+          .send({
+            message: "Ingresa el nombre del usuario del que deseas ver los Tweets",
+          });
+      }
+      break;
+
+    case "follow":
+      if (datos[1] != null) {
+        if (authenticated.username === datos[1]) {
+          res.status(404).send({ message: "No te puedes seguir a ti mismo, eso no tiene sentido!" });
+        } else {
+          User.findOne(
+            { username: datos[1], followers: authenticated.username },
+            (err, followerFind) => {
+              if (err) {
+                res.status(500).send({ message: "Error en el server" });
+              } else if (followerFind) {
+                res.send({ message: "Ya sigues a este usuario" });
+              } else {
+                User.findOneAndUpdate(
+                  { username: datos[1] },
+                  { $push: { followers: authenticated.username } },
+                  { new: true },
+                  (err, followed) => {
+                    if (err) {
+                      res.status(500).send({ message: "Error en el server" });
+                    } else if (followed) {
+                      User.findOneAndUpdate(
+                        { username: datos[1] },
+                        { $inc: { noFollowers: 1 } },
+                        { new: true },
+                        (err, noFollowers) => {
+                          if (err) {
+                            res
+                              .status(500)
+                              .send({ message: "Error en el server" });
+                          } else if (noFollowers) {
+                            res.send({ message: "Ahora estas siguiendo a: " + datos[1] });
+                          } else {
+                            res
+                              .status(404)
+                              .send({
+                                message:
+                                  "Ha ocurrido un error al realizar esta acción",
+                              });
+                          }
                         }
-                    }, {
-                        new: true
-                    }, (err, userUpdated) => {
+                      );
+                    } else {
+                      res
+                        .status(404)
+                        .send({ message: "Hubo un error al intentar seguir a: " + datos[1] });
+                    }
+                  }
+                );
+              }
+            }
+          );
+        }
+      } else {
+        res
+          .status(404)
+          .send({ message: "Por favor ingresa el nombre del usuario al que deseas seguir" });
+      }
+      break;
+
+    case "unfollow":
+      if (datos[1] != null) {
+        User.findOne(
+          { username: datos[1], followers: authenticated.username },
+          (err, followerFind) => {
+            if (err) {
+              res.status(500).send({ message: "Error en el server" });
+            } else if (followerFind) {
+              User.findOneAndUpdate(
+                { username: datos[1] },
+                { $pull: { followers: authenticated.username } },
+                { new: true },
+                (err, followed) => {
+                  if (err) {
+                    res.status(500).send({ message: "Error en el server" });
+                  } else if (followed) {
+                    User.findOneAndUpdate(
+                      { username: datos[1] },
+                      { $inc: { noFollowers: -1 } },
+                      { new: true },
+                      (err, noFollowers) => {
                         if (err) {
-                            res.status(500).send({
-                                message: 'Error en el server'
-                            });
-                        } else if (userUpdated) {
-                            res.send({
-                                user: userUpdated
-                            });
+                          res
+                            .status(500)
+                            .send({ message: "Error en el server" });
+                        } else if (noFollowers) {
+                          res.send({
+                            message: "Ya no sigues a este usuario: " + datos[1],
+                          });
                         } else {
-                            res.status(500).send({
-                                message: 'No se ha podido insertar el tweet'
+                          res
+                            .status(404)
+                            .send({
+                              message:
+                                "Hubo un error al dejar de seguir",
                             });
                         }
-                    });
-                } else {
-                    res.send({
-                        message: 'Tweet no encontrado'
-                    });
+                      }
+                    );
+                  } else {
+                    res
+                      .status(404)
+                      .send({
+                        message: "Hubo un error al dejar de seguir a: " + datos[1],
+                      });
+                  }
                 }
-            });
-        } else {
-            res.send({
-                message: 'Ingresa el ID del tweet'
-            });
-        }
-    }
+              );
+            } else {
+              res.status(404).send({ message: "No sigues a este usuario." });
+            }
+          }
+        );
+      } else {
+        res
+          .status(404)
+          .send({ message: "Por favor ingresa el nombre del usuario al que deseas dejar de seguir" });
+      }
+      break;
 
-    if (resp[0] == "follow") {
-        var username = resp[1];
-        if (resp.length == 2) {
-            User.findOne({
-                username: username
-            }, (err, Found) => {
+    case "profile":
+      if (datos[1] != null) {
+        User.findOne(
+          { username: { $regex: datos[1], $options: "i" } },
+          (err, tweets) => {
+            if (err) {
+              res.status(500).send({ message: "Error en el server" });
+            } else if (tweets) {
+              User.find(
+                { username: datos[1] },
+                {
+                  noFollowers: 1,
+                  numTweets: 1,
+                  _id: 0,
+                  email: 1,
+                  name: 1,
+                  followers: 1,
+                },
+                (err, userFind) => {
+                  if (err) {
+                    res.status(500).send({ message: "Error en el server" });
+                  } else if (userFind) {
+                    res.send({ message: userFind });
+                  } else {
+                    res
+                      .status(404)
+                      .send({
+                        message:
+                          "Hubo un error al mostrar el perfil",
+                      });
+                  }
+                }
+              );
+            } else {
+              res
+                .status(404)
+                .send({ message: "No se ha encontrado a este usuario" });
+            }
+          }
+        );
+      } else {
+        res.status(404).send({ message: "Por favor ingresa el nombre del usuario al que deseas ver" });
+      }
+      break;
+
+    case "like":
+      if (datos[1] != null) {
+        Tweet.findById(datos[1], (err, findTweet) => {
+          if (err) {
+            res.status(500).send({ message: "Error en el server" });
+          } else if (findTweet) {
+            let user = findTweet.user;
+            User.findOne(
+              { username: { $regex: user, $options: "i" } },
+              (err, userFind) => {
                 if (err) {
-                    res.status(500).send({
-                        message: "Error en el server" + err
-                    });
-                } else if (Found) {
-                    if (req.user.username != Found.username) {
-                        User.findOne({
-                            _id: req.user.sub,
-                            followers: Found._id
-                        }, (err, userFind) => {
+                  res.status(500).send({ message: "Error en el server" });
+                } else if (userFind) {
+                  let idUser = userFind.id;
+                  User.findOne(
+                    { _id: idUser, followers: authenticated.username },
+                    (err, follower) => {
+                      if (err) {
+                        res.status(500).send({ message: "Error en el server" });
+                      } else if (follower) {
+                        Tweet.findOne(
+                          { _id: datos[1], likes: authenticated.username },
+                          (err, likesFind) => {
                             if (err) {
-                                res.status(500).send({
-                                    message: "Error en el server" + err
+                              res
+                                .status(500)
+                                .send({
+                                  message: "Error al intentar darle like",
                                 });
-                            } else if (userFind) {
-                                res.status(200).send({
-                                    message: "Ya estás siguiendo a este usuario!"
-                                });
+                            } else if (likesFind) {
+                              res.send({
+                                message: "Ya te gusta este tweet!",
+                              });
                             } else {
-                                User.findByIdAndUpdate(req.user.sub, {
-                                    $push: {
-                                        followers: Found._id
-                                    }
-                                }, {
-                                    new: true
-                                }, (err, followedAdded) => {
-                                    if (err) {
-                                        res.status(500).send({
-                                            message: "Error :(" + err
-                                        });
-                                    } else if (followedAdded) {
-                                        User.findByIdAndUpdate(Found._id, {
-                                            $push: {
-                                                followed: req.user.sub
-                                            }
-                                        }, {
-                                            new: true
-                                        }, (err, succeeded) => {
-                                            if (err) {
-                                                res.status(404).send({
-                                                    message: "Error :(" + err
-                                                });
-                                            } else if (succeeded) {
-                                                res.send({
-                                                    follow: Found.username
-                                                });
-                                            } else {
-                                                res.status(500).send({
-                                                    message: "No se pudo seguir a este usuario",
-                                                });
-                                            }
-                                        });
-                                    } else {
-                                        res.status(500).send({
+                              Tweet.findByIdAndUpdate(
+                                datos[1],
+                                { $push: { likes: authenticated.username } },
+                                { new: true },
+                                (err, liked) => {
+                                  if (err) {
+                                    res.status(500).send({
+                                      message: "Error en el server",
+                                    });
+                                  } else if (liked) {
+                                    Tweet.findByIdAndUpdate(
+                                      datos[1],
+                                      { $inc: { numberLikes: 1 } },
+                                      { new: true },
+                                      (err, noLikes) => {
+                                        if (err) {
+                                          res.status(500).send({
                                             message: "Error en el server",
-                                        });
-                                    }
-                                });
+                                          });
+                                        } else if (noLikes) {
+                                          res.send({
+                                            message:
+                                              "Le has dado like a este tweet!",
+                                          });
+                                        } else {
+                                          res.status(404).send({
+                                            message:
+                                              "No se puede volver a darle like!",
+                                          });
+                                        }
+                                      }
+                                    );
+                                  } else {
+                                    res.status(404).send({
+                                      message:
+                                        "Ha ocurrido un error al darle like a este Tweet!",
+                                    });
+                                  }
+                                }
+                              );
                             }
+                          }
+                        );
+                      } else {
+                        res.status(404).send({
+                          message:
+                            "Debes seguir a este user para poder darle like a sus tweets",
                         });
-                    } else {
-                        res.status(200).send({
-                            message: "El comando no entiende qué quieres hacer!"
-                        });
+                      }
                     }
+                  );
                 } else {
-                    res.status(404).send({
-                        message: "Error general al seguir"
-                    });
+                  res
+                    .status(404)
+                    .send({ message: "No se ha encontrado al usuario" });
                 }
-            });
-        } else {
-            res.send({
-                message: "Por favor ingresa el nombre del usuario al que deseas seguir"
-            });
-        }
-    }
+              }
+            );
+          } else {
+            res
+              .status(404)
+              .send({ message: "No se ha encontrado ningún tweet" });
+          }
+        });
+      } else {
+        res.status(404).send({
+          message: "Ingresa el id del tweet al que desees darle like",
+        });
+      }
+      break;
 
-    if (resp[0] == "unfollow") {
-        var username = resp[1];
+    case "dislike":
+      if (datos[1] != null) {
+        Tweet.findOne(
+          { _id: datos[1], likes: authenticated.username },
+          (err, likesFind) => {
+            if (err) {
+              res.status(500).send({ message: "Error en el server" });
+            } else if (likesFind) {
+              Tweet.findByIdAndUpdate(
+                datos[1],
+                { $pull: { likes: authenticated.username } },
+                { new: true },
+                (err, liked) => {
+                  if (err) {
+                    res.status(500).send({ message: "Error en el server" });
+                  } else if (liked) {
+                    Tweet.findByIdAndUpdate(
+                      datos[1],
+                      { $inc: { numberLikes: -1 } },
+                      { new: true },
+                      (err, noLikes) => {
+                        if (err) {
+                          res
+                            .status(500)
+                            .send({ message: "Error en el server" });
+                        } else if (noLikes) {
+                          res.send({ message: "Ya no te gusta este tweet" });
+                        } else {
+                          res.status(404).send({
+                            message: "Ya te ha dejado de gustar este tweet",
+                          });
+                        }
+                      }
+                    );
+                  } else {
+                    res.status(404).send({
+                      message:
+                        "Ha ocurrido un error al darle dislike a este Tweet",
+                    });
+                  }
+                }
+              );
+            } else {
+              res
+                .status(404)
+                .send({ message: "No le has dado like a este Tweet" });
+            }
+          }
+        );
+      } else {
+        res.status(404).send({
+          message: "Ingresa el ID del tweet al que desees darle like.",
+        });
+      }
+      break;
 
-        if (resp.length == 2) {
-            User.findOne({
-                username: username
-            }, (err, userFound) => {
+    case "reply":
+      if (datos[1] != null) {
+        if (datos[2] != null) {
+          Tweet.comments = datos.join(" ");
+          Tweet.comments = Tweet.comments.replace("reply", "");
+          Tweet.comments = Tweet.comments.replace(datos[1], "");
+          Tweet.comments = Tweet.comments.replace("  ", "");
+          let comment = Tweet.comments;
+
+          if (Tweet.comments.length <= 280) {
+            Tweet.findByIdAndUpdate(
+              datos[1],
+              { $inc: { numberComments: 1 } },
+              { new: true },
+              (err, tweetUpdate) => {
                 if (err) {
-                    res.status(500).send({
-                        message: "Error :(" + err
-                    });
-                } else if (userFound) {
-                    if (req.user.username != userFound.username) {
-                        User.findOne({
-                            _id: req.user.sub,
-                            followers: userFound._id
-                        }, (err, userFind) => {
-                            if (err) {
-                                res.status(500).send({
-                                    message: "Error :(" + err
-                                });
-                            } else if (userFind) {
-                                User.findByIdAndUpdate(req.user.sub, {
-                                    $pull: {
-                                        followers: userFound._id
-                                    }
-                                }, {
-                                    new: true
-                                }, (err, unfollowedAdded) => {
-                                    if (err) {
-                                        res.status(500).send({
-                                            message: "Error :(" + err
-                                        });
-                                    } else if (unfollowedAdded) {
-                                        User.findByIdAndUpdate(userFound._id, {
-                                            $pull: {
-                                                followed: req.user.sub
-                                            }
-                                        }, {
-                                            new: true
-                                        }, (err, succeeded) => {
-                                            if (err) {
-                                                res.status(500).send({
-                                                    message: "Error :(" + err
-                                                });
-                                            } else if (succeeded) {
-                                                res.send({
-                                                    unfollow: userFound.username
-                                                });
-                                            } else {
-                                                res.status(500).send({
-                                                    message: "Error en el server",
-                                                });
-                                            }
-                                        });
-                                    } else {
-                                        res.status(500).send({
-                                            message: "Error en el server",
-                                        })
-                                    }
-                                });
-                            } else {
-                                res.status(200).send({
-                                    message: "Debes seguir a este usuario primero para poder dejar de seguirlo",
-                                });
-                            }
+                  res.status(500).send({ message: "Error en el server" });
+                } else if (tweetUpdate) {
+                  Tweet.findByIdAndUpdate(
+                    datos[1],
+                    {
+                      $push: {
+                        comments: { reply: comment, user: authenticated.username },
+                      },
+                    },
+                    { new: true },
+                    (err, tweetSaved) => {
+                      if (err) {
+                        res.status(500).send({ message: "Error en el server" });
+                      } else if (tweetSaved) {
+                        res.send({ tweet: tweetSaved });
+                      } else {
+                        res.status(404).send({
+                          message: "No se has podido responder a este tweet",
                         });
-                    } else {
-                        res.status(200).send({
-                            message: "El comando no entiende qué quieres realizar humano!"
-                        });
+                      }
                     }
+                  );
                 } else {
-                    res.status(404).send({
-                        message: "Error en el server"
-                    });
+                  res.status(404).send({
+                    message: "No se ha podido responder a este tweet",
+                  });
                 }
+              }
+            );
+          } else {
+            res.status(404).send({
+              message:
+                "Tu respuesta excede el número máximo de caracteres (280)!",
             });
+          }
         } else {
-            res.send({
-                message: "Por favor ingresa el nombre de la persona a la que deseas dejar de seguir"
-            });
+          res.status(404).send({ message: "Comparte tu respuesta!" });
         }
-    }
+      } else {
+        res.status(404).send({
+          message: "Ingrese el ID del tweet al que quieras responder",
+        });
+      }
+      break;
+
+    case "retweet":
+      if (datos[1] != null) {
+        tweet.content = datos.join(" ");
+        tweet.content = tweet.content.replace("retweet", "");
+        tweet.content = tweet.content.replace(datos[1], "");
+        tweet.content = tweet.content.replace("  ", "");
+        let content = tweet.content;
+
+        tweet.save((err, tweetFind) => {
+          if (err) {
+            res.status(500).send({ message: "Error en el server" });
+          } else if (tweetFind) {
+            let idTweet = tweetFind.id;
+            User.findByIdAndUpdate(
+              authenticated.idUser,
+              { $inc: { numTweets: 1 } },
+              { new: true },
+              (err, numTweets) => {
+                if (err) {
+                  res.status(500).send({ message: "Error en el server" });
+                } else if (numTweets) {
+                  Tweet.findByIdAndUpdate(
+                    datos[1],
+                    { $inc: { numberRetweets: 1 } },
+                    { new: true },
+                    (err, noRetweet) => {
+                      if (err) {
+                        res.status(500).send({ message: "Error en el server" });
+                      } else if (noRetweet) {
+                        Tweet.findByIdAndUpdate(
+                          idTweet,
+                          {
+                            $set: {
+                              content: content,
+                              retweet: datos[1],
+                              user: authenticated.username,
+                            },
+                          },
+                          { new: true },
+                          (err, retweet) => {
+                            if (err) {
+                              res
+                                .status(500)
+                                .send({ message: "Error en el server" });
+                            } else if (retweet) {
+                              res.send({ tweet: retweet });
+                            } else {
+                              res.send({
+                                message: "No se ha podido retweetear",
+                              });
+                            }
+                          }
+                        ).populate("retweet");
+                      } else {
+                        res.status(404).send({
+                          message: "Ya has retweeteado esto anteriormente",
+                        });
+                      }
+                    }
+                  );
+                } else {
+                  res.status(404).send({
+                    message:
+                      "Error, no se puede incrementar la cantidad de retweets",
+                  });
+                }
+              }
+            );
+          } else {
+            res
+              .status(404)
+              .send({ message: "Ha ocurrido un error al retweetear." });
+          }
+        });
+      } else {
+        res
+          .status(404)
+          .send({ message: "Ingresa el ID del tweet que deseas retweetear" });
+      }
+      break;
+
+    default:
+      res
+        .status(404)
+        .send({
+          message: "Ingresa un comando válido para realizar una acción",
+        });
+      break;
+  }
 }
 
 module.exports = {
-    commands
-}
+  commands,
+};

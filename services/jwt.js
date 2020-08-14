@@ -1,18 +1,17 @@
 'use strict'
 
-var jwt = require('jwt-simple');
-var moment = require('moment');
-var key = 'twitter_secret_key_tengo_miedo';
+const jwt = require('jwt-simple');
+const moment = require('moment');
+const key = 'user1808Pass123';
 
-exports.createToken = (user) => {
-    var payload = {
+exports.createToken = (user)=>{
+    let payload = {
         sub: user._id,
         name: user.name,
-        username: user.username,
         email: user.email,
+        username: user.username,
         iat: moment().unix(),
-        exp: moment().add(24, "hours").unix()
+        exp: moment().add(10, "days").unix()
     };
-
     return jwt.encode(payload, key);
 }
